@@ -43,6 +43,7 @@ interval=60
 
 
 profile="DEFAULT"
+config="config/ampere.default.json"
 try=0
 query=()
 
@@ -50,7 +51,7 @@ query=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -c|--config=*)
-        query+=( --from-json "file://${1#*=}")
+        config="${1#*=}"
         ;;
     -i|--interval=*)
         interval="${1#*=}"
@@ -72,6 +73,7 @@ while [ $# -gt 0 ]; do
 done
 
 query+=( --profile "$profile" )
+query+=( --from-json "file://${config}")
 
 # do API queries at requestInterval until success event
 while true; do
