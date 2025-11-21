@@ -26,27 +26,22 @@ log "Script initialized with PID $(cat "$PIDFILE")"
 
 # TENACY_ID validation
 if [[ -z "${TENANCY_ID}" ]]; then
-    log "TENANCY_ID is unset or empty. Please change in .env file"
+    log "TENANCY_ID is missing. Please configure .env file"
     exit 1
-else
-    log "TENANCY_ID is set correctly"
 fi
 
 # Authentication verification
-log "Verifying Connection"
 oci iam compartment list
 if [ $? -ne 0 ]; then
-    log "Connection to Oracle cloud is not working. Check your setup and config again!"
+    log "Unable to fetch compartment list. Please configure .env file"
     exit 1
 fi
 
 # Send requests too quickly results in 429 TooManyRequests or worse
 interval=60
-
-
+try=0
 profile="DEFAULT"
 config="config/ampere.default.json"
-try=0
 query=()
 
 # Runtime args parsing
@@ -68,7 +63,7 @@ while [ $# -gt 0 ]; do
         try="${1#*=}"
         ;;
     *)
-        printf "* Error: Invalid argument.*\n"
+        log "[RuntimeError] Invalid argument supplied"
         exit 1
   esac
   shift
@@ -83,16 +78,29 @@ ram=$(jq -r '.shapeConfig.memoryInGBs' "$config")
 image=$(jq -r '.sourceDetails.imageId' "$config")
 bvs=$(jq -r '.sourceDetails.bootVolumeSizeInGBs' "$config")
 
+# Check if the variable starts with '[' → treat as JSON array
+if [[ $AVAILABILITY_DOMAIN == \[* ]]; then
+    # Parse JSON array into Bash array
+    mapfile -t availability_domains < <(jq -r '.[]' <<< "$AVAILABILITY_DOMAIN")
+else
+    # Single string → create array with one element
+    availability_domains=("$AVAILABILITY_DOMAIN")
+fi
+
+domain_index=0
+num_domains=${#availability_domains[@]}
+
 # do API queries at requestInterval until success event
 while true; do
 
-    log "[REQUEST] Create ${shape} w/ ${cpus} ocpu ${ram}gb ram ${bvs}gb storage using ${image} on ${AVAILABILITY_DOMAIN}"
+    current_domain="${availability_domains[$domain_index]}"
+    log "[REQUEST] Create ${shape} w/ ${cpus} ocpu ${ram}gb ram ${bvs}gb storage using ${image} on ${current_domain}"
 
     response=$(oci compute instance launch --no-retry  \
                 --auth api_key \
                 --compartment-id "$TENANCY_ID" \
                 --subnet-id "$SUBNET_ID" \
-                --availability-domain "$AVAILABILITY_DOMAIN" \
+                --availability-domain "$current_domain" \
                 "${query[@]}" \
                 --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" \
                 --raw-output 2>&1)
@@ -101,7 +109,7 @@ while true; do
 
     # if no output, query 200 success
     if (( exit_code == 0 )); then
-        log "[RESPONSE] [200] SUCCESS Created ${shape} instance w/ ${cpus} ocpu ${ram}gb ram on ${AVAILABILITY_DOMAIN}"
+        log "[RESPONSE] [200] SUCCESS Created ${shape} instance w/ ${cpus} ocpu ${ram}gb ram on ${current_domain}"
         break
     else
         if [[ ${response} =~ ServiceError ]]; then
@@ -116,10 +124,16 @@ while true; do
     fi
 
     if (( try > 0 )); then
-        ((try--))
+        (( try-- ))
         if (( try <= 0 )); then
             break
         fi
+    fi
+
+    # Rotate to next domain if multiple
+    (( domain_index++ ))
+    if (( domain_index >= num_domains )); then
+        domain_index=0
     fi
 
     sleep $interval
