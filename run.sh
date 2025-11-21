@@ -2,33 +2,18 @@
 
 source .env
 
-if [[ -z "${TENANCY_ID}" ]]; then
-    echo "TENANCY_ID is unset or empty. Please change in .env file"
-    exit 1
-else
-    echo "TENANCY_ID is set correctly"
-fi
-
-# To verify that the authentication with Oracle cloud works
-echo "Checking Connection with this request: "
-oci iam compartment list
-if [ $? -ne 0 ]; then
-    echo "Connection to Oracle cloud is not working. Check your setup and config again!"
-    exit 1
-fi
-
 # Logging configuration
-LOGFILE="/var/log/oci-arm-launch.log"
-PIDFILE="/var/run/oci-arm-launch.pid"
+LOGFILE="/var/log/oci-launcher.log"
+PIDFILE="/var/run/oci-launcher.pid"
 
 log() {
-    echo "$(date +'%b %d %H:%M:%S') | $1" | tee -a "$LOGFILE"
+    echo "$(date +'%b %d %H:%M:%S') oci_create[$(cat "$PIDFILE")]: $1" | tee -a "$LOGFILE"
 }
 
 # Prevent double runs
 if [[ -f "$PIDFILE" ]]; then
     if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "Script already running with PID $(cat "$PIDFILE")"
+        log "Script already running with PID $(cat "$PIDFILE")"
         exit 1
     fi
 fi
@@ -37,21 +22,36 @@ echo $$ > "$PIDFILE"
 cleanup() { rm -f "$PIDFILE"; }
 trap cleanup EXIT
 
+# TENACY_ID validation
+if [[ -z "${TENANCY_ID}" ]]; then
+    log "TENANCY_ID is unset or empty. Please change in .env file"
+    exit 1
+else
+    log "TENANCY_ID is set correctly"
+fi
+
+# Authentication verification
+echo "Checking Connection with this request: "
+oci iam compartment list
+if [ $? -ne 0 ]; then
+    log "Connection to Oracle cloud is not working. Check your setup and config again!"
+    exit 1
+fi
+
 # ----------------------CUSTOMIZE---------------------------------------------------------------------------------------
 
 # Don't go too low or you run into 429 TooManyRequests
 requestInterval=60 # seconds
 
 # VM params
-cpus=1 # max 4 cores
-ram=2 # max 24gb memory
-bootVolume=50 # disk size in gb
+cpus=4 # max 4 cores
+ram=24 # max 24gb memory
+bootVolume=200 # disk size in gb
 displayName="WG Relay Instance" # friendly name for instance
 
 profile="DEFAULT"
 
-# ----------------------ENDLESS LOOP TO REQUEST AN ARM INSTANCE---------------------------------------------------------
-
+# do API queries at requestInterval until success event
 while true; do
 
     response=$(oci compute instance launch --no-retry  \
@@ -68,21 +68,19 @@ while true; do
                 --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" \
                 --raw-output 2>&1)
 
+    # if no output, query 200 success
     if [[ $? == 0 ]]; then
-        # All went well!
-        echo "File uploaded, etag: ${response}"
+        log "SUCCESS 200 ${displayName} launched on ${AVAILABILITY_DOMAIN}"
         break
     else
-        # Handle error
         if [[ ${response} =~ ServiceError ]]; then
-            # we have a Service Error, only keep the JSON part of the response and
-            # use JQ to parse it:
             message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
             status=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .status)
-            echo "Service Error: ${message}"
+            code=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .code)
+            log "${code^^} ${status} ${message}"
         else
-            # Other error...
-            echo "Unexpected error message: ${response}"
+            # TODO: Handling other errors, etc
+            log "Unexpected Error - ${response}"
         fi
     fi
 
