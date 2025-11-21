@@ -48,5 +48,23 @@ while true; do
                 --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" \
                 --raw-output 2>&1)
 
+    if [[ $? == 0 ]]; then
+        # All went well!
+        echo "File uploaded, etag: ${response}"
+        break
+    else
+        # Handle error
+        if [[ ${response} =~ ServiceError ]]; then
+            # we have a Service Error, only keep the JSON part of the response and
+            # use JQ to parse it:
+            message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
+            status=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .status)
+            echo "Service Error: ${message}"
+        else
+            # Other error...
+            echo "Unexpected error message: ${response}"
+        fi
+    fi
+
     sleep $requestInterval
 done
