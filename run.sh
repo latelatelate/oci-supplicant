@@ -10,7 +10,7 @@ log() {
     echo "$(date +'%b %d %H:%M:%S') oci_create[$(cat "$PIDFILE")]: $1" | tee -a "$LOGFILE"
 }
 
-# Prevent double runs
+# Prevent duplicate execution
 if [[ -f "$PIDFILE" ]]; then
     if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
         log "Script already running with PID $(cat "$PIDFILE")"
@@ -38,19 +38,40 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# ----------------------CUSTOMIZE---------------------------------------------------------------------------------------
+# Send requests too quickly results in 429 TooManyRequests or worse
+interval=60
 
-# Don't go too low or you run into 429 TooManyRequests
-requestInterval=60 # seconds
-
-# VM params
-cpus=4 # max 4 cores
-ram=24 # max 24gb memory
-bootVolume=200 # disk size in gb
-displayName="WG Relay Instance" # friendly name for instance
-shape="VM.Standard.A1.Flex"
 
 profile="DEFAULT"
+try=0
+query=()
+
+# Runtime args parsing
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -c|--config=*)
+        query+=( --from-json "file://${1#*=}")
+        ;;
+    -i|--interval=*)
+        interval="${1#*=}"
+        ;;
+    -n|--name=*)
+        query+=( --display-name "${1#*=}" )
+        ;;
+    -p|--profile=*)
+        profile="${1#*=}"
+        ;;
+    -t|--try=*)
+        try="${1#*=}"
+        ;;
+    *)
+        printf "* Error: Invalid argument.*\n"
+        exit 1
+  esac
+  shift
+done
+
+query+=( --profile "$profile" )
 
 # do API queries at requestInterval until success event
 while true; do
@@ -59,20 +80,18 @@ while true; do
 
     response=$(oci compute instance launch --no-retry  \
                 --auth api_key \
-                --profile "$profile" \
-                --display-name "$displayName" \
                 --compartment-id "$TENANCY_ID" \
                 --image-id "$IMAGE_ID" \
                 --subnet-id "$SUBNET_ID" \
                 --availability-domain "$AVAILABILITY_DOMAIN" \
-                --shape "$shape" \
-                --shape-config "{'ocpus':$cpus,'memoryInGBs':$ram}" \
-                --boot-volume-size-in-gbs "$bootVolume" \
+                "${query[@]}" \
                 --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" \
                 --raw-output 2>&1)
 
+    exit_code=$?
+
     # if no output, query 200 success
-    if [[ $? == 0 ]]; then
+    if [[ exit_code == 0 ]]; then
         log "[RESPONSE] SUCCESS 200 Created ${shape} instance w/ ${cpus}OCPU ${ram}GB ram on ${AVAILABILITY_DOMAIN}"
         break
     else
@@ -84,6 +103,13 @@ while true; do
         else
             # TODO: Handling other errors, etc
             log "[RESPONSE] Unexpected Error - ${response}"
+        fi
+    fi
+
+    if (( try > 0 )); then
+        ((try--))
+        if (( try <= 0 )); then
+            break
         fi
     fi
 
