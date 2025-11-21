@@ -1,8 +1,8 @@
 {
   "shape": "VM.Standard.A1.Flex",
   "shapeConfig": {
-    "ocpus": 2,
-    "memoryInGBs": 12
+    "ocpus": 1,
+    "memoryInGBs": 6
   },
 "sourceDetails": {
     "sourceType": "image",

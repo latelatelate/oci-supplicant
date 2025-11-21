@@ -6,6 +6,7 @@
   },
 "sourceDetails": {
     "sourceType": "image",
+    "imageId": "INCLUDE_YOUR_IMAGE_ID_HERE",
     "bootVolumeSizeInGBs": 50
   }
 }
