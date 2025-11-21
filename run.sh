@@ -48,11 +48,14 @@ cpus=4 # max 4 cores
 ram=24 # max 24gb memory
 bootVolume=200 # disk size in gb
 displayName="WG Relay Instance" # friendly name for instance
+shape="VM.Standard.A1.Flex"
 
 profile="DEFAULT"
 
 # do API queries at requestInterval until success event
 while true; do
+
+    log "[REQUEST] Create ${shape} instance w/ ${cpus}OCPU ${ram}GB ram on ${AVAILABILITY_DOMAIN}"
 
     response=$(oci compute instance launch --no-retry  \
                 --auth api_key \
@@ -62,7 +65,7 @@ while true; do
                 --image-id "$IMAGE_ID" \
                 --subnet-id "$SUBNET_ID" \
                 --availability-domain "$AVAILABILITY_DOMAIN" \
-                --shape 'VM.Standard.A1.Flex' \
+                --shape "$shape" \
                 --shape-config "{'ocpus':$cpus,'memoryInGBs':$ram}" \
                 --boot-volume-size-in-gbs "$bootVolume" \
                 --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" \
@@ -70,17 +73,17 @@ while true; do
 
     # if no output, query 200 success
     if [[ $? == 0 ]]; then
-        log "SUCCESS 200 ${displayName} launched on ${AVAILABILITY_DOMAIN}"
+        log "[RESPONSE] SUCCESS 200 Created ${shape} instance w/ ${cpus}OCPU ${ram}GB ram on ${AVAILABILITY_DOMAIN}"
         break
     else
         if [[ ${response} =~ ServiceError ]]; then
             message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
             status=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .status)
             code=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .code)
-            log "${code^^} ${status} ${message}"
+            log "[RESPONSE] ${code^^} ${status} ${message}"
         else
             # TODO: Handling other errors, etc
-            log "Unexpected Error - ${response}"
+            log "[RESPONSE] Unexpected Error - ${response}"
         fi
     fi
 
