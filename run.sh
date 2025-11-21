@@ -22,6 +22,8 @@ echo $$ > "$PIDFILE"
 cleanup() { rm -f "$PIDFILE"; }
 trap cleanup EXIT
 
+log "Script initialized with PID $(cat "$PIDFILE")"
+
 # TENACY_ID validation
 if [[ -z "${TENANCY_ID}" ]]; then
     log "TENANCY_ID is unset or empty. Please change in .env file"
@@ -31,7 +33,7 @@ else
 fi
 
 # Authentication verification
-echo "Checking Connection with this request: "
+log "Verifying Connection"
 oci iam compartment list
 if [ $? -ne 0 ]; then
     log "Connection to Oracle cloud is not working. Check your setup and config again!"
@@ -75,15 +77,20 @@ done
 query+=( --profile "$profile" )
 query+=( --from-json "file://${config}")
 
+shape=$(jq -r '.shape' "$config")
+cpus=$(jq -r '.shapeConfig.ocpus' "$config")
+ram=$(jq -r '.shapeConfig.memoryInGBs' "$config")
+image=$(jq -r '.sourceDetails.imageId' "$config")
+bvs=$(jq -r '.sourceDetails.bootVolumeSizeInGBs' "$config")
+
 # do API queries at requestInterval until success event
 while true; do
 
-    log "[REQUEST] Create ${shape} instance w/ ${cpus}OCPU ${ram}GB ram on ${AVAILABILITY_DOMAIN}"
+    log "[REQUEST] Create ${shape} w/ ${cpus} ocpu ${ram}gb ram ${bvs}gb storage using ${image} on ${AVAILABILITY_DOMAIN}"
 
     response=$(oci compute instance launch --no-retry  \
                 --auth api_key \
                 --compartment-id "$TENANCY_ID" \
-                --image-id "$IMAGE_ID" \
                 --subnet-id "$SUBNET_ID" \
                 --availability-domain "$AVAILABILITY_DOMAIN" \
                 "${query[@]}" \
@@ -93,15 +100,15 @@ while true; do
     exit_code=$?
 
     # if no output, query 200 success
-    if [[ exit_code == 0 ]]; then
-        log "[RESPONSE] SUCCESS 200 Created ${shape} instance w/ ${cpus}OCPU ${ram}GB ram on ${AVAILABILITY_DOMAIN}"
+    if (( exit_code == 0 )); then
+        log "[RESPONSE] [200] SUCCESS Created ${shape} instance w/ ${cpus} ocpu ${ram}gb ram on ${AVAILABILITY_DOMAIN}"
         break
     else
         if [[ ${response} =~ ServiceError ]]; then
             message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
             status=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .status)
             code=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .code)
-            log "[RESPONSE] ${code^^} ${status} ${message}"
+            log "[RESPONSE] [${status}] ${code} ${message}"
         else
             # TODO: Handling other errors, etc
             log "[RESPONSE] Unexpected Error - ${response}"
@@ -115,5 +122,7 @@ while true; do
         fi
     fi
 
-    sleep $requestInterval
+    sleep $interval
 done
+
+log "Script finished. Terminating"
