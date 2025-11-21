@@ -1,0 +1,11 @@
+{
+  "shape": "VM.Standard.A1.Flex",
+  "shapeConfig": {
+    "ocpus": 4,
+    "memoryInGBs": 24
+  },
+"sourceDetails": {
+    "sourceType": "image",
+    "bootVolumeSizeInGBs": 50
+  }
+}

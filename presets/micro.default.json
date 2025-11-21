@@ -1,0 +1,11 @@
+{
+  "shape": "VM.Standard.E2.1.Micro",
+  "shapeConfig": {
+    "ocpus": 1,
+    "memoryInGBs": 1
+  },
+"sourceDetails": {
+    "sourceType": "image",
+    "bootVolumeSizeInGBs": 50
+  }
+}
