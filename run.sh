@@ -17,6 +17,26 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Logging configuration
+LOGFILE="/var/log/oci-arm-launch.log"
+PIDFILE="/var/run/oci-arm-launch.pid"
+
+log() {
+    echo "$(date +'%b %d %H:%M:%S') | $1" | tee -a "$LOGFILE"
+}
+
+# Prevent double runs
+if [[ -f "$PIDFILE" ]]; then
+    if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Script already running with PID $(cat "$PIDFILE")"
+        exit 1
+    fi
+fi
+echo $$ > "$PIDFILE"
+
+cleanup() { rm -f "$PIDFILE"; }
+trap cleanup EXIT
+
 # ----------------------CUSTOMIZE---------------------------------------------------------------------------------------
 
 # Don't go too low or you run into 429 TooManyRequests
