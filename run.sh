@@ -6,11 +6,52 @@ source .env
 LOGFILE="/var/log/oci-launcher.log"
 PIDFILE="/var/run/oci-launcher.pid"
 
-pid=$$
+START=$(date +%s)
+
+cleanup() { 
+    rm -f "$PIDFILE";
+    log "Total Runtime: $(get_runtime "$START")"
+}
+
+handle_sigint() {
+    log "Received SIGINT (Ctrl+C). Terminating"
+    exit 130
+}
+
+handle_sigterm() {
+    log "Received SIGTERM (kill). Terminating"
+    exit 143
+}
+
+trap handle_sigint INT
+trap handle_sigterm TERM
+trap cleanup EXIT
+
+format_runtime() {
+    local total_seconds=$1
+    local days=$(( total_seconds / 86400 ))
+    local hours=$(( (total_seconds % 86400) / 3600 ))
+    local minutes=$(( (total_seconds % 3600) / 60 ))
+    local seconds=$(( total_seconds % 60 ))
+
+    local result=""
+    (( days > 0 )) && result+="${days}d "
+    (( hours > 0 )) && result+="${hours}h "
+    (( minutes > 0 )) && result+="${minutes}m "
+    (( seconds > 0 || result=="" )) && result+="${seconds}s"
+
+    echo "$result"
+}
+
+get_runtime() {
+    format_runtime $(( $(date +%s) - $1 ))
+}
 
 log() {
     echo "$(date +'%b %d %H:%M:%S') oci_create[$pid]: $1" | tee -a "$LOGFILE"
 }
+
+pid=$$
 
 # Prevent duplicate execution
 if [[ -f "$PIDFILE" ]]; then
@@ -28,28 +69,7 @@ if [[ -f "$PIDFILE" ]]; then
 fi
 
 # Write new PID to file
-echo $$ > "$PIDFILE"
-
-cleanup() { 
-    rm -f "$PIDFILE"; 
-}
-
-handle_sigint() {
-    log "Received SIGINT (Ctrl+C). Terminating"
-    cleanup
-    exit 130
-}
-
-handle_sigterm() {
-    log "Received SIGTERM (kill). Terminating"
-    cleanup
-    exit 143
-}
-
-trap handle_sigint INT
-trap handle_sigterm TERM
-trap cleanup EXIT
-
+echo $pid > "$PIDFILE"
 log "Script initialized with PID $pid"
 
 # TENACY_ID validation
