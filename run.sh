@@ -30,7 +30,24 @@ fi
 # Write new PID to file
 echo $$ > "$PIDFILE"
 
-cleanup() { rm -f "$PIDFILE"; }
+cleanup() { 
+    rm -f "$PIDFILE"; 
+}
+
+handle_sigint() {
+    log "Received SIGINT (Ctrl+C). Terminating"
+    cleanup
+    exit 130
+}
+
+handle_sigterm() {
+    log "Received SIGTERM (kill). Terminating"
+    cleanup
+    exit 143
+}
+
+trap handle_sigint INT
+trap handle_sigterm TERM
 trap cleanup EXIT
 
 log "Script initialized with PID $pid"
