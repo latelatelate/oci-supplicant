@@ -6,23 +6,34 @@ source .env
 LOGFILE="/var/log/oci-launcher.log"
 PIDFILE="/var/run/oci-launcher.pid"
 
+pid=$$
+
 log() {
-    echo "$(date +'%b %d %H:%M:%S') oci_create[$(cat "$PIDFILE")]: $1" | tee -a "$LOGFILE"
+    echo "$(date +'%b %d %H:%M:%S') oci_create[$pid]: $1" | tee -a "$LOGFILE"
 }
 
 # Prevent duplicate execution
 if [[ -f "$PIDFILE" ]]; then
-    if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        log "Script already running with PID $(cat "$PIDFILE")"
+    read existing_pid < "$PIDFILE"
+
+    if kill -0 "$existing_pid" 2>/dev/null; then
+        # script is running — log it using our own PID prefix
+        log "Another instance is already running with PID $existing_pid"
         exit 1
+    else
+        # stale PID file
+        log "Stale PID file detected for PID $existing_pid. Removing"
+        rm -f "$PIDFILE"
     fi
 fi
+
+# Write new PID to file
 echo $$ > "$PIDFILE"
 
 cleanup() { rm -f "$PIDFILE"; }
 trap cleanup EXIT
 
-log "Script initialized with PID $(cat "$PIDFILE")"
+log "Script initialized with PID $pid"
 
 # TENACY_ID validation
 if [[ -z "${TENANCY_ID}" ]]; then
@@ -80,17 +91,16 @@ bvs=$(jq -r '.sourceDetails.bootVolumeSizeInGBs' "$config")
 
 # Check if the variable starts with '[' → treat as JSON array
 if [[ $AVAILABILITY_DOMAIN == \[* ]]; then
-    # Parse JSON array into Bash array
+    # Parse JSON array to bash
     mapfile -t availability_domains < <(jq -r '.[]' <<< "$AVAILABILITY_DOMAIN")
 else
-    # Single string → create array with one element
     availability_domains=("$AVAILABILITY_DOMAIN")
 fi
 
 domain_index=0
 num_domains=${#availability_domains[@]}
 
-# do API queries at requestInterval until success event
+# do API queries indefintely at $interval until success or $try count is met
 while true; do
 
     current_domain="${availability_domains[$domain_index]}"
