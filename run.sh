@@ -50,10 +50,6 @@ get_runtime() {
 
 log() {
     echo "$(date +'%b %d %H:%M:%S') run.sh[$pid]: $1" | tee -a "$LOGFILE"
-
-    if (( $COUNT > 1000 )); then
-        sed -i -e :a -e '$q;N;1001,$D;ba' "$LOGFILE"
-    fi
 }
 
 pid=$$
@@ -148,6 +144,7 @@ while true; do
     current_domain="${availability_domains[$domain_index]}"
     log "[REQUEST] Create ${shape} on ${current_domain}"
 
+    tmp_ec=$(mktemp)
     response=$(oci compute instance launch --no-retry  \
                 --auth api_key \
                 --compartment-id "$TENANCY_ID" \
@@ -156,9 +153,11 @@ while true; do
                 "${query[@]}" \
                 --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" \
                 --raw-output 2>&1)
+    echo $? > "$tmp_ec"
+    exit_code=$(<"$tmp_ec")
+    rm "$tmp_ec"
 
-    exit_code=$?
-    (( $COUNT++ ))
+    (( COUNT++ ))
 
     # if no output, query 200 success
     if (( exit_code == 0 )); then
@@ -187,6 +186,11 @@ while true; do
     (( domain_index++ ))
     if (( domain_index >= num_domains )); then
         domain_index=0
+    fi
+
+    # Trim log if > 1000 requests
+    if (( COUNT > 1000 )); then
+        sed -i -e :a -e '$q;N;1000,$D;ba' $LOGFILE
     fi
 
     sleep $interval
