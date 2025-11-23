@@ -49,7 +49,11 @@ get_runtime() {
 }
 
 log() {
-    echo "$(date +'%b %d %H:%M:%S') oci_create[$pid]: $1" | tee -a "$LOGFILE"
+    echo "$(date +'%b %d %H:%M:%S') run.sh[$pid]: $1" | tee -a "$LOGFILE"
+
+    if (( $COUNT > 1000 )); then
+        sed -i -e :a -e '$q;N;1001,$D;ba' "$LOGFILE"
+    fi
 }
 
 pid=$$
@@ -142,7 +146,7 @@ num_domains=${#availability_domains[@]}
 while true; do
 
     current_domain="${availability_domains[$domain_index]}"
-    log "[REQUEST] Create ${shape} w/ ${cpus} ocpu ${ram}gb ram ${bvs}gb storage using ${image} on ${current_domain}"
+    log "[REQUEST] Create ${shape} on ${current_domain}"
 
     response=$(oci compute instance launch --no-retry  \
                 --auth api_key \
@@ -154,7 +158,7 @@ while true; do
                 --raw-output 2>&1)
 
     exit_code=$?
-    (( COUNT++ ))
+    (( $COUNT++ ))
 
     # if no output, query 200 success
     if (( exit_code == 0 )); then
