@@ -125,11 +125,17 @@ done
 query+=( --profile "$profile" )
 query+=( --from-json "file://${config}")
 
-shape=$(jq -r '.shape' "$config")
-cpus=$(jq -r '.shapeConfig.ocpus' "$config")
-ram=$(jq -r '.shapeConfig.memoryInGBs' "$config")
-image=$(jq -r '.sourceDetails.imageId' "$config")
-bvs=$(jq -r '.sourceDetails.bootVolumeSizeInGBs' "$config")
+read shape cpus ram image bvs < <(
+    jq -r '
+        [
+            .shape,
+            .shapeConfig.ocpus,
+            .shapeConfig.memoryInGBs,
+            .sourceDetails.imageId,
+            .sourceDetails.bootVolumeSizeInGBs
+        ] | @tsv
+    ' "$config"
+)
 
 # Check if the variable starts with '[' → treat as JSON array
 if [[ $AVAILABILITY_DOMAIN == \[* ]]; then
@@ -168,12 +174,14 @@ while true; do
         log "[200] SUCCESS Created ${shape} instance w/ ${cpus} ocpu ${ram}gb ram on ${current_domain}"
         break
     else
-        message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
-        code=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .code)
+        # Remove the first line  and parse the rest
+        json=$(echo "$response" | tail -n +2)
+        IFS=$'\t' read -r code message status < <(
+            jq -r '[.code // "", .message // "", .status // ""] | @tsv' <<< "$json"
+        )
         text="${code^^} ${message}"
         
         if [[ ${response} =~ ServiceError ]]; then
-            status=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .status)
             log "[${status}] $text"
         else
             log "Unexpected Error - $text"
