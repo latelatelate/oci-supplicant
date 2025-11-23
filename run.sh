@@ -7,10 +7,11 @@ LOGFILE="/var/log/oci-launcher.log"
 PIDFILE="/var/run/oci-launcher.pid"
 
 START=$(date +%s)
+COUNT=0
 
 cleanup() { 
     rm -f "$PIDFILE";
-    log "Total Runtime: $(get_runtime "$START")"
+    log "Total Requests: $COUNT | Total Runtime: $(get_runtime "$START")"
 }
 
 handle_sigint() {
@@ -153,6 +154,7 @@ while true; do
                 --raw-output 2>&1)
 
     exit_code=$?
+    (( COUNT++ ))
 
     # if no output, query 200 success
     if (( exit_code == 0 )); then
