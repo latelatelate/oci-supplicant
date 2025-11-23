@@ -9,9 +9,9 @@ PIDFILE="/var/run/oci-launcher.pid"
 START=$(date +%s)
 COUNT=0
 
-cleanup() { 
+cleanup() {
     rm -f "$PIDFILE";
-    log "Total Requests: $COUNT | Total Runtime: $(get_runtime "$START")"
+    get_stats
 }
 
 handle_sigint() {
@@ -48,6 +48,10 @@ get_runtime() {
     format_runtime $(( $(date +%s) - $1 ))
 }
 
+get_stats() {
+    log "Total Requests: $COUNT | Total Runtime: $(get_runtime "$START")" 
+}
+
 log() {
     echo "$(date +'%b %d %H:%M:%S') run.sh[$pid]: $1" | tee -a "$LOGFILE"
 }
@@ -60,7 +64,7 @@ if [[ -f "$PIDFILE" ]]; then
 
     if kill -0 "$existing_pid" 2>/dev/null; then
         # script is running — log it using our own PID prefix
-        log "Another instance is already running with PID $existing_pid"
+        log "Another instance is already running with PID $existing_pid. Terminating"
         exit 1
     else
         # stale PID file
@@ -75,14 +79,14 @@ log "Script initialized with PID $pid"
 
 # TENACY_ID validation
 if [[ -z "${TENANCY_ID}" ]]; then
-    log "TENANCY_ID is missing. Please configure .env file"
+    log "TENANCY_ID is missing. Please configure .env file. Terminating"
     exit 1
 fi
 
 # Authentication verification
 oci iam compartment list
 if [ $? -ne 0 ]; then
-    log "Unable to fetch compartment list. Please configure .env file"
+    log "Unable to fetch compartment list. Please configure .env file. Terminating"
     exit 1
 fi
 
@@ -112,7 +116,7 @@ while [ $# -gt 0 ]; do
         try="${1#*=}"
         ;;
     *)
-        log "[RuntimeError] Invalid argument supplied"
+        log "[RuntimeError] Invalid argument supplied. Terminating"
         exit 1
   esac
   shift
@@ -142,7 +146,7 @@ num_domains=${#availability_domains[@]}
 while true; do
 
     current_domain="${availability_domains[$domain_index]}"
-    log "[REQUEST] Create ${shape} on ${current_domain}"
+    log "Create ${shape} on ${current_domain}"
 
     tmp_ec=$(mktemp)
     response=$(oci compute instance launch --no-retry  \
@@ -161,17 +165,18 @@ while true; do
 
     # if no output, query 200 success
     if (( exit_code == 0 )); then
-        log "[RESPONSE] [200] SUCCESS Created ${shape} instance w/ ${cpus} ocpu ${ram}gb ram on ${current_domain}"
+        log "[200] SUCCESS Created ${shape} instance w/ ${cpus} ocpu ${ram}gb ram on ${current_domain}"
         break
     else
+        message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
+        code=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .code)
+        text="${code^^} ${message}"
+        
         if [[ ${response} =~ ServiceError ]]; then
-            message=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .message)
             status=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .status)
-            code=$(grep -Pzo "(?s){.*}" <<<${response} | jq -r .code)
-            log "[RESPONSE] [${status}] ${code} ${message}"
+            log "[${status}] $text"
         else
-            # TODO: Handling other errors, etc
-            log "[RESPONSE] Unexpected Error - ${response}"
+            log "Unexpected Error - $text"
         fi
     fi
 
