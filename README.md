@@ -26,27 +26,31 @@ Oracle's free tier offers a generous ARM instance with 4 cors and 24gb of memory
    - **Note**: In case you are asked for a profile name: Type in "DEFAULT"
 
 7. Execute following command to get a list of possible images. Select one and copy it into the [.env](.env) variable `IMAGE_ID`:
-```
+```bash
 oci compute image list --all -c "$TENANCY_ID" --auth api_key | jq -r '.data[] | select(.["display-name"] | contains("aarch64")) | "\(.["display-name"]): \(.id)"'
 ```
 8. To get a list of possible Subnets, which you can save in the [.env](.env) variable `SUBNET_ID`:
-```
+```bash
 oci network subnet list -c "$TENANCY_ID" --auth api_key | jq -r '.data[] | "\(.["display-name"]): \(.id)"'
 ```
 9. Copy the availability domain into the [.env](.env) variable `AVAILABILITY_DOMAIN`:
-```
+```bash
 oci iam availability-domain list -c "$TENANCY_ID" --auth api_key | jq -r '.data[].name'
 ```
 10. Lastly change the variable `PATH_TO_PUBLIC_SSH_KEY` in the [.env](.env) file. That;s the path to a public SSH key on your machine to connect to the ARM instance once it's created
    - Either download it from the Oracle Cloud instance creation website or [generate an ssh key yourself](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#generating-a-new-ssh-key)  
 11. Ensure the `./run.sh` bash script can be executed 
-```
+```bash
 chmod +x run.sh
 ```
 Setup complete!
 
 ## Configuration
-oci-supplicant is customizable via run time args `./run.sh --interval 120 --try=20 --config="config/ampere.max.json"`. Here is the full list of arguments:
+oci-supplicant is customizable via run time args
+```bash
+./run.sh --interval=120 --try=20 --config="config/ampere.max.json"
+```
+Here is the full list of usable arguments:
 <dl>
    <dt>--config=</dt>
    <dd>
@@ -82,8 +86,8 @@ oci-supplicant is customizable via run time args `./run.sh --interval 120 --try=
    <dd>Default: none</dd>
 </dl>
 <dl>
-   <dt>--profile="DEFAULT"</dt>
-   <dd>OCI profile to use with API requests</dd>
+   <dt>--profile=</dt>
+   <dd>OCI profile to use with API requests.</dd>
    <dd>Default: DEFAULT</dd>
 </dl>
 <dl>
@@ -94,9 +98,9 @@ oci-supplicant is customizable via run time args `./run.sh --interval 120 --try=
 
 ## Usage 
 
-In a linux environment, run the script in detached mode using:
+In a linux environment, run the script silently detached from terminal using:
 
-```
+```bash
 ( nohup ./run.sh --config="config/ampere.max.json" > /dev/null 2>&1 & disown )
 ```
 The script will request an instance every minute (default `--interval`). Errors are logged to `/var/log/oci-launcher.log` (limited to 1000 lines). 
