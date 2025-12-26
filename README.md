@@ -47,10 +47,12 @@ Setup complete!
 
 ## Configuration
 oci-supplicant is customizable via run time args `./run.sh --interval 120 --try=20 --config="config/ampere.max.json"`. Here is the full list of arguments:
+<dl>
+   <dt>--config=</dt>
+   <dd>
+      Specifies a `config.json` file to use for instance creation. Config files contain the hardware and image info necessary for instance creation in `json` format. Here is an example of `ampere.max.json` (max specs for free tier):
 
---config=
-: Specifies a `config.json` file to use for instance creation. Config files contain the hardware and image info necessary for instance creation in `json` format. Here is an example of `ampere.max.json` (max specs for free tier):
-: ```json
+   ```json
    {
       "shape": "VM.Standard.A1.Flex",
       "shapeConfig": {
@@ -63,24 +65,32 @@ oci-supplicant is customizable via run time args `./run.sh --interval 120 --try=
          "bootVolumeSizeInGBs": 50
       }
    }
-: Specify the distro image to use with `imageId`. Hard drive size is specified with `bootVolumeSizeInGBs` but keep in mind OCI only gives free tier users **200gb** across all instances
-: Default: config/ampere.default.json
+   ```
 
---interval=
-: The time interval between retries (in seconds)
-: Default: 60
-
---name=
-: Name for the instance being created (alias of --display-name)
-: Default: none
-
---profile="DEFAULT"
-: OCI profile to use with API requests
-: Default: DEFAULT
-
---try=0
-: Total number of attempts. Specify `0` for infinite retries
-: Default: 0 (infinite)
+   </dd>
+   <dd>Specify the distro image to use with imageId. Hard drive size is specified with `bootVolumeSizeInGBs` but keep in mind OCI only gives free tier users 200gb across all instances</dd>
+   <dd>Default: config/ampere.default.json</dd>
+</dl>
+<dl>
+   <dt>--interval=</dt>
+   <dd>The time interval between retries (in seconds)</dd>
+   <dd>Default: 60</dd>
+</dl>
+<dl>
+   <dt>--name=</dt>
+   <dd>Name for the instance being created (alias of --display-name)</dd>
+   <dd>Default: none</dd>
+</dl>
+<dl>
+   <dt>--profile="DEFAULT"</dt>
+   <dd>OCI profile to use with API requests</dd>
+   <dd>Default: DEFAULT</dd>
+</dl>
+<dl>
+   <dt>--try</dt>
+   <dd>Total number of attempts. Specify `0` for infinite retries</dd>
+   <dd>Default: 0 (infinite)</dd>
+</dl>
 
 ## Usage 
 
