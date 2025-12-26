@@ -10,6 +10,26 @@ Oracle's free tier offers a generous ARM instance with 4 cors and 24gb of memory
 - Retries automatically until success
 - Basic error logging
 
+
+**Table of Contents**:
+<ol style="list-style-type:lower-roman;">
+   <li>
+   
+   [Setup](#setup)
+   
+   </li>
+   <li>
+
+   [Configuration](#configuration)
+
+   </li>
+   <li>
+
+   [Usage](#usage)
+
+   </li>
+</ol>
+
 ## Setup 
 1. Install the Oracle cloud CLI for Linux/Unix: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm#InstallingCLI__linux_and_unix
 2. Login to your Oracle Cloud account in the browser: https://cloud.oracle.com/
@@ -82,7 +102,7 @@ Here is the full list of usable arguments:
 </dl>
 <dl>
    <dt>--name=</dt>
-   <dd>Name for the instance being created (alias of --display-name)</dd>
+   <dd>Name for the instance being created (alias of OCI CLI --display-name)</dd>
    <dd>Default: none</dd>
 </dl>
 <dl>
