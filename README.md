@@ -1,16 +1,14 @@
-# Oracle Cloud Free ARM Instance
-A bash script to create an ARM instance on Oracle Cloud using their official OCI command line tool (CLI).
+# Oracle Cloud Infrastructure Supplicant
+An automated way to create Compute Instances using OCI CLI and bash.
 
 Oracle's free tier offers a generous ARM instance with 4 cors and 24gb of memory. Compared to most other services, that is a pretty good free plan to start with. The only problem is that the resources are very limited for users in the free plan. If you want to create an instance through their website, you usually run into an error: **Out of Capacity**. It means that there aren't enough free resources available. Instead of clicking endless times in the browser, we can automate the instance creation request.
 
-**Inspired by** following PowerShell Windows solution: https://github.com/HotNoob/Oracle-Free-Arm-VPS-PS/tree/main
-
-**Differences**:
-- I am using Bash and Linux
-- API key to authenticate without time limit as opposed to sessions limited to 1 hour
-- Script allows additional customizations like boot volume disk size and a SSH key to connect to the instance
-- Script was simplified and shows the whole error response (see [screenshot](screenshot.png))
-- More documentation and step by step explanation
+**Features**:
+- Uses Bash and Linux
+- API key authentication without time limits
+- Instance customizations via simple `.json` files
+- Retries automatically until success
+- Basic error logging
 
 ## Setup 
 1. Install the Oracle cloud CLI for Linux/Unix: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm#InstallingCLI__linux_and_unix
@@ -41,24 +39,56 @@ oci iam availability-domain list -c "$TENANCY_ID" --auth api_key | jq -r '.data[
 ```
 10. Lastly change the variable `PATH_TO_PUBLIC_SSH_KEY` in the [.env](.env) file. That;s the path to a public SSH key on your machine to connect to the ARM instance once it's created
    - Either download it from the Oracle Cloud instance creation website or [generate an ssh key yourself](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#generating-a-new-ssh-key)  
-Finally, we are done with the setup (hardest part)
-
-## Customize (optional)
-Inside the file `/oracle_cloud_instance_creator.sh` you will find a section to change following parameters:
-
-CPU cores, memory in gb, boot volume disk space, path to public SSH key, interval of the creation request
-
-## Run script 
-- Open the terminal and go to the path of this repo
-- make sure the creator script can be executed 
+11. Ensure the `./run.sh` bash script can be executed 
 ```
 chmod +x run.sh
 ```
-- Run the script with:
+Setup complete!
+
+## Configuration
+oci-supplicant is customizable via run time args `./run.sh --interval 120 --try=20 --config="config/ampere.max.json"`. Here is the full list of arguments:
+
+--config=
+: Specifies a `config.json` file to use for instance creation. Config files contain the hardware and image info necessary for instance creation in `json` format. Here is an example of `ampere.max.json` (max specs for free tier):
+: ```json
+   {
+      "shape": "VM.Standard.A1.Flex",
+      "shapeConfig": {
+         "ocpus": 4,
+         "memoryInGBs": 24
+      },
+      "sourceDetails": {
+         "sourceType": "image",
+         "imageId": "INCLUDE_YOUR_IMAGE_ID_HERE",
+         "bootVolumeSizeInGBs": 50
+      }
+   }
+: Specify the distro image to use with `imageId`. Hard drive size is specified with `bootVolumeSizeInGBs` but keep in mind OCI only gives free tier users **200gb** across all instances
+: Default: config/ampere.default.json
+
+--interval=
+: The time interval between retries (in seconds)
+: Default: 60
+
+--name=
+: Name for the instance being created (alias of --display-name)
+: Default: none
+
+--profile="DEFAULT"
+: OCI profile to use with API requests
+: Default: DEFAULT
+
+--try=0
+: Total number of attempts. Specify `0` for infinite retries
+: Default: 0 (infinite)
+
+## Usage 
+
+In a linux environment, run the script in detached mode using:
+
 ```
 ( nohup ./run.sh --config="config/ampere.max.json" > /dev/null 2>&1 & disown )
 ```
-Every minute (default `requestInterval`) the script will request an instance. The console will print a JSON `ServerError` response until the instance creation was successful. The creation could take days or in some cases weeks/months. You could run it on your machine, but I'd recommend to create a simple free AMD instance first and run it there in the background.
+The script will request an instance every minute (default `--interval`). Errors are logged to `/var/log/oci-launcher.log` (limited to 1000 lines). 
 
-Screenshot of how the error 500 response would look like. If you see something like this everything works as expected: 
-![screenshot](screenshot.png)
+The creation process could take days/weeks/months. I'd recommend running this in the background in a standalone container or virtual machine.
